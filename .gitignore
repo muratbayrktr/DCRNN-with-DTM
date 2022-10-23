@@ -9,6 +9,7 @@ __pycache__/
 # data
 data/
 figures/
+dcrnn_predictions*
 
 # wandb
 wandb/
