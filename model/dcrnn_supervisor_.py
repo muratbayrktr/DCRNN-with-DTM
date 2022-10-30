@@ -82,11 +82,11 @@ class DCRNNSupervisor(object):
             optimizer = AMSGrad(self._lr, epsilon=epsilon)
 
 
-        # DTM
+        ############## ADDITIONAL ##################
         # Get the training set
         self.feat_mean_values_np = np.mean(self._data['train_loader'].xs,axis=0)
         self.feat_mean_values_np = tf.convert_to_tensor(self.feat_mean_values_np, dtype='float32')
-
+        ############################################
 
         # Calculate loss
         output_dim = self._model_kwargs.get('output_dim')
@@ -152,11 +152,13 @@ class DCRNNSupervisor(object):
         preds = model.outputs
         labels = model.labels[..., :output_dim]
         loss = self._loss_fn(preds=preds, labels=labels, feat_mean_values_np=self.feat_mean_values_np, use_dtm=self._kwargs.get('use_dtm'))
+        
+        ############## ADDITIONAL ##################
         # Peak Error
         max_value = tf.reduce_max(preds)
         feat_mean_values = tf.reduce_mean(preds,axis=0)
         pmae, prmse = metrics.calculate_peak_metrics(pred=preds, label=labels, null_val=0, feat_mean_values_np=feat_mean_values,max_value=max_value,DTM_TH=self._DTM_TH)
-        
+        ############################################
         
         fetches = {
             'loss': loss,
@@ -259,8 +261,9 @@ class DCRNNSupervisor(object):
                                                    self._data['val_loader'].get_iterator(),
                                                    training=False)
             val_loss, val_mae = np.asscalar(val_results['loss']), np.asscalar(val_results['mae'])
+            ############## ADDITIONAL ##################
             val_pmae, val_prmse = np.asscalar(val_results['pmae']), np.asscalar(val_results['prmse'])
-
+            ############################################
 
             utils.add_simple_summary(self._writer,
                                      ['loss/train_loss', 'metric/train_mae', 'loss/val_loss', 'metric/val_mae'],
@@ -331,7 +334,8 @@ class DCRNNSupervisor(object):
             tmae.append(mae)
             tmape.append(mape)
             trmse.append(rmse)
-            
+
+            ############## ADDITIONAL ##################            
             # Peak Error
             max_value = np.max(y_pred)
             feat_mean_values_np = np.mean(y_pred,axis=0)
@@ -340,7 +344,7 @@ class DCRNNSupervisor(object):
             tpmae.append(pmae)
             tpmape.append(pmape)
             tprmse.append(prmse)
-            
+            ############################################
             
             self._logger.info(
                 "Horizon {:02d}, MAE: {:.2f}, MAPE: {:.4f}, RMSE: {:.2f}, PMAE: {:.2f}, PMAPE: {:.2f}, PRMSE: {:.2f}".format(

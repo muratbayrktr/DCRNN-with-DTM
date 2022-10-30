@@ -2,11 +2,6 @@ import numpy as np
 import tensorflow as tf
 
 
-def distance_to_mean_loss_vector(labels, mean_value):
-    dtm_loss = abs(labels - mean_value)
-    dtm_loss /= tf.reduce_max(labels)
-    return dtm_loss
-
 
 def masked_mse_tf(preds, labels, null_val=np.nan):
     """
@@ -125,6 +120,28 @@ def masked_rmse_loss(scaler, null_val):
 
     return loss
 
+def calculate_metrics(df_pred, df_test, null_val):
+    """
+    Calculate the MAE, MAPE, RMSE
+    :param df_pred:
+    :param df_test:
+    :param null_val:
+    :return:
+    """
+    mape = masked_mape_np(preds=df_pred.as_matrix(), labels=df_test.as_matrix(), null_val=null_val)
+    mae = masked_mae_np(preds=df_pred.as_matrix(), labels=df_test.as_matrix(), null_val=null_val)
+    rmse = masked_rmse_np(preds=df_pred.as_matrix(), labels=df_test.as_matrix(), null_val=null_val)
+    return mae, mape, rmse
+
+
+
+##################### ADDITIONAL ########################
+
+def distance_to_mean_loss_vector(labels, mean_value):
+    dtm_loss = abs(labels - mean_value)
+    dtm_loss /= tf.reduce_max(labels)
+    return dtm_loss
+
 
 def masked_mae_loss(scaler, null_val):
     def loss(preds, labels, feat_mean_values_np ,use_dtm=True):
@@ -146,21 +163,6 @@ def masked_mae_loss(scaler, null_val):
         return tf.reduce_mean(mae)
 
     return loss
-
-
-def calculate_metrics(df_pred, df_test, null_val):
-    """
-    Calculate the MAE, MAPE, RMSE
-    :param df_pred:
-    :param df_test:
-    :param null_val:
-    :return:
-    """
-    mape = masked_mape_np(preds=df_pred.as_matrix(), labels=df_test.as_matrix(), null_val=null_val)
-    mae = masked_mae_np(preds=df_pred.as_matrix(), labels=df_test.as_matrix(), null_val=null_val)
-    rmse = masked_rmse_np(preds=df_pred.as_matrix(), labels=df_test.as_matrix(), null_val=null_val)
-    return mae, mape, rmse
-
 
 def masked_peak_mae(preds, labels, null_val, dtm_threshold): 
     with np.errstate(divide='ignore', invalid='ignore'):
