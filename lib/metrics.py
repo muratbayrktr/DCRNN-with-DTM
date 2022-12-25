@@ -21,7 +21,7 @@ def masked_mse_tf(preds, labels, null_val=np.nan):
     loss = tf.square(tf.subtract(preds, labels))
     loss = loss * mask
     loss = tf.where(tf.is_nan(loss), tf.zeros_like(loss), loss)
-    return tf.reduce_mean(loss)
+    return loss #tf.reduce_mean(loss)
 
 
 def masked_mae_tf(preds, labels, null_val=np.nan):
@@ -137,8 +137,17 @@ def calculate_metrics(df_pred, df_test, null_val):
 
 ##################### ADDITIONAL ########################
 
-def distance_to_mean_loss_vector(labels, mean_value):
+def distance_to_mean_loss_vector(labels, mean_value, null_val=np.nan):
+    if np.isnan(null_val):
+        mask = ~tf.is_nan(labels)
+    else:
+        mask = tf.not_equal(labels, null_val)
+    mask = tf.cast(mask, tf.float32)
+    mask /= tf.reduce_mean(mask)
+    mask = tf.where(tf.is_nan(mask), tf.zeros_like(mask), mask)
     dtm_loss = abs(labels - mean_value)
+    dtm_loss = dtm_loss*mask
+    dtm_loss = tf.where(tf.is_nan(dtm_loss), tf.zeros_like(dtm_loss), dtm_loss)
     dtm_loss /= tf.reduce_max(labels)
     return dtm_loss
 
@@ -150,7 +159,7 @@ def masked_mae_loss(scaler, null_val):
             labels = scaler.inverse_transform(labels)
         mae = masked_mae_tf(preds=preds, labels=labels, null_val=null_val)
 
-        dtms = distance_to_mean_loss_vector(labels, feat_mean_values_np)
+        dtms = distance_to_mean_loss_vector(labels, feat_mean_values_np, null_val)
         dtm_weights = tf.convert_to_tensor(dtms, dtype='float32')
 
         # flag for dtm usage
@@ -161,6 +170,27 @@ def masked_mae_loss(scaler, null_val):
 
         # return default loss
         return tf.reduce_mean(mae)
+
+    return loss
+
+def masked_mse_loss(scaler, null_val):
+    def loss(preds, labels, feat_mean_values_np ,use_dtm=True):
+        if scaler:
+            preds = scaler.inverse_transform(preds)
+            labels = scaler.inverse_transform(labels)
+        mse = masked_mse_tf(preds=preds, labels=labels, null_val=null_val)
+
+        dtms = distance_to_mean_loss_vector(labels, feat_mean_values_np)
+        dtm_weights = tf.convert_to_tensor(dtms, dtype='float32')
+
+        # flag for dtm usage
+        if (use_dtm):
+            # multiply with weights
+            dtm = tf.multiply(dtm_weights, mse)
+            return tf.reduce_mean(dtm)
+
+        # return default loss
+        return tf.reduce_mean(mse)
 
     return loss
 
@@ -221,9 +251,9 @@ def masked_peak_mae_tf(preds, labels, null_val, dtm_above_thresh):
     mask /= tf.reduce_mean(mask)
     mask = tf.where(tf.is_nan(mask), tf.zeros_like(mask), mask)
     loss = tf.abs(tf.subtract(preds, labels))
-    loss = loss * mask
-    loss = tf.math.multiply(dtm_above_thresh, loss)
+    #loss = loss * mask
     loss = tf.where(tf.is_nan(loss), tf.zeros_like(loss), loss)
+    loss = tf.math.multiply(dtm_above_thresh, loss)
 
     return tf.reduce_mean(loss)
 
@@ -249,7 +279,7 @@ def masked_peak_rmse_tf(preds, labels, null_val, dtm_above_thresh):
     mask /= tf.reduce_mean(mask)
     mask = tf.where(tf.is_nan(mask), tf.zeros_like(mask), mask)
     loss = tf.square(tf.subtract(preds, labels))
-    loss = loss * mask
+    #loss = loss * mask
     loss = tf.where(tf.is_nan(loss), tf.zeros_like(loss), loss)
     loss = tf.math.multiply(dtm_above_thresh, loss)
     return tf.sqrt(tf.reduce_mean(loss))
