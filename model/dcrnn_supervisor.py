@@ -11,9 +11,12 @@ import yaml
 import wandb
 import math
 
+from datetime import datetime
+
 from lib import utils, metrics
 from lib.AMSGrad import AMSGrad
-from lib.metrics import masked_mae_loss
+from lib.metrics import masked_mae_loss, masked_mse_loss
+
 
 from model.dcrnn_model import DCRNNModel
 
@@ -42,8 +45,18 @@ class DCRNNSupervisor(object):
         self._logger.info(kwargs)
 
         # wandb
-        wandb.login(key="29bf2c9952ce0c1351a7ae5568956cdb6edd7025")
-        wandb.init(project="dcrnn", entity="traffic-gman")
+        loss_name = self._kwargs.get('loss')
+        date_of_run = str(datetime.now())
+        options = ["BASE","DTM"]
+        dataset = self._kwargs['data'].get('dataset_dir')[5:] #PEMS-BAY | METR-LA
+        minute = ""
+        if self._kwargs['model'].get('horizon') == 12:
+            minute = "60min"
+        elif self._kwargs['model'].get('horizon') == 6:
+            minute = "30min"
+        name_str = f"{dataset}_{options[self._kwargs.get('use_dtm')]}_{loss_name}_{self._kwargs['train'].get('base_lr')}_{self._kwargs.get('DTM_TH')}_{minute}_{date_of_run}"
+        wandb.login(key=REMOVED)
+        wandb.init(project="dcrnn", entity="traffic-gman", name=name_str)
         
         
         # Data preparation
@@ -94,7 +107,10 @@ class DCRNNSupervisor(object):
         labels = self._train_model.labels[..., :output_dim]
 
         null_val = 0.
-        self._loss_fn = masked_mae_loss(scaler, null_val)  #masked_mae_loss(scaler, null_val)
+        if (self._kwargs.get('loss')=="mae"):
+            self._loss_fn = masked_mae_loss(scaler, null_val)  # MAE LOSS
+        else:
+            self._loss_fn = masked_mse_loss(scaler, null_val)  # MSE LOSS
         self._train_loss = self._loss_fn(preds=preds, labels=labels, feat_mean_values_np=self.feat_mean_values_np, use_dtm=self._kwargs.get('use_dtm'))
         self._DTM_TH = self._kwargs.get('DTM_TH')
 
@@ -308,7 +324,7 @@ class DCRNNSupervisor(object):
     def evaluate(self, sess, **kwargs):
         global_step = sess.run(tf.train.get_or_create_global_step())
         test_results = self.run_epoch_generator(sess, self._test_model,
-                                                self._data['test_loader'].get_iterator(),
+                                                self._data['test_loader'].get_iterator(), # test_loader
                                                 return_output=True,
                                                 training=False)
 
@@ -320,6 +336,7 @@ class DCRNNSupervisor(object):
         scaler = self._data['scaler']
         predictions = []
         y_truths = []
+
         tmae, tmape, trmse, tpmae, tpmape, tprmse = [], [], [], [], [], []
         for horizon_i in range(self._data['y_test'].shape[1]):
             y_truth = scaler.inverse_transform(self._data['y_test'][:, horizon_i, :, 0])
@@ -327,6 +344,8 @@ class DCRNNSupervisor(object):
 
             y_pred = scaler.inverse_transform(y_preds[:y_truth.shape[0], horizon_i, :, 0])
             predictions.append(y_pred)
+        
+
 
             mae = metrics.masked_mae_np(y_pred, y_truth, null_val=0)
             mape = metrics.masked_mape_np(y_pred, y_truth, null_val=0)
